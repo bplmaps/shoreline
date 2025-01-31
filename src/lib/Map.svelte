@@ -25,6 +25,12 @@
   let mapElement;
   let map;
 
+  let measureOn = $state(false);
+
+  const possibleYears = shoreline.features.map(
+    (feature) => feature.properties.year,
+  );
+
   let centerPoint = $state([0, 0]);
   let distance = $derived(
     calculateDistanceToPolygon(
@@ -33,10 +39,6 @@
         (feature) => feature.properties.year === selectedYear.year,
       ),
     ),
-  );
-
-  const possibleYears = shoreline.features.map(
-    (feature) => feature.properties.year,
   );
 
   let shorelineSource = new VectorSource({
@@ -81,7 +83,6 @@
     const y = selectedYear.year;
 
     if (!map) return;
-
     const features = shorelineSource.getFeatures();
     filteredSource.clear();
     filteredSource.addFeatures(
@@ -96,14 +97,20 @@
     constrainOnlyCenter: true,
   });
 
-  function updateCenterPoint() {
-    const center = view.getCenter();
+  function updateMeasurePoint(point) {
     centerPointSource.clear();
     centerPointSource.addFeatures([
-      new Feature({ geometry: new Point(center) }),
+      new Feature({ geometry: new Point(point) }),
     ]);
 
-    centerPoint = toLonLat(center);
+    centerPoint = toLonLat(point);
+  }
+
+  function handleMouseMove(event) {
+    if (!map || !measureOn) return;
+
+    const coords = map.getCoordinateFromPixel([event.x, event.y]);
+    updateMeasurePoint(coords);
   }
 
   function getLocation() {
@@ -119,7 +126,6 @@
           position.coords.latitude,
         ]);
         view.setCenter(coords);
-        updateCenterPoint()
       },
       (error) => {
         console.error("Error getting location:", error.message);
@@ -136,9 +142,6 @@
     });
 
     apply(backgroundLayer, styleJson);
-    updateCenterPoint();
-
-    view.on("change", updateCenterPoint);
 
     return () => {
       if (map) {
@@ -150,19 +153,37 @@
 </script>
 
 <div class="w-screen h-screen">
-  <div bind:this={mapElement} class="w-full h-full"></div>
+  <div
+    bind:this={mapElement}
+    class="w-full h-full"
+    onmousemove={handleMouseMove}
+  ></div>
 
   <div class="absolute bottom-5 left-5 w-1/2 bg-white rounded-md p-4">
     <div class="flex flex-col md:flex-row">
       <Dropdown options={possibleYears} />
+      <div>
+        <button
+          onclick={() => (measureOn = !measureOn)}
+          class={`relative w-full cursor-pointer rounded-md py-2 pl-3 pr-10 text-left shadow-sm ring-1 ring-inset focus:outline-none focus:ring-2 focus:ring-indigo-600 sm:text-sm md:text-2xl sm:leading-6 ${
+            measureOn
+              ? "bg-red-500 text-white ring-red-300"
+              : "bg-white text-gray-900 ring-gray-300"
+          }`}
+        >
+          {measureOn ? "Stop Measuring" : "Start Measuring"}
+        </button>
+      </div>
+      {#if measureOn}
       <div class="ml-4 flex-shrink">
         <p>
-          The red point at the center of the map is {distance.toFixed(2)} km ({(
+          The red point is {distance.toFixed(2)} km ({(
             distance * 0.621371
           ).toFixed(2)} miles) from the nearest point on the
           <strong>{selectedYear.year} shoreline.</strong>
         </p>
       </div>
+      {/if}
       <div class="flex-grow">
         <button
           onclick={getLocation}
