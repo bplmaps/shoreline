@@ -1,0 +1,1 @@
+export let selectedYear = $state({"year": 1630});
