@@ -14,10 +14,12 @@
     "vite": "^6.0.5"
   },
   "dependencies": {
+    "@fortawesome/free-solid-svg-icons": "^6.7.2",
     "@tailwindcss/vite": "^4.0.1",
     "@turf/turf": "^7.2.0",
     "ol": "^10.4.0",
     "ol-mapbox-style": "^12.4.0",
+    "svelte-fa": "^4.0.3",
     "tailwindcss": "^4.0.1"
   }
 }
