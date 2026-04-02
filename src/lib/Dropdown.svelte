@@ -34,7 +34,15 @@
         <li
           class="relative cursor-default select-none py-2 pl-3 pr-9 text-gray-900 hover:bg-indigo-600 hover:text-white"
           role="option"
+          aria-selected={value === option}
+          tabindex="0"
           onclick={() => select(option)}
+          onkeydown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              select(option);
+            }
+          }}
         >
           <span class="block truncate {value === option ? 'font-semibold' : 'font-normal'}">
             {option}

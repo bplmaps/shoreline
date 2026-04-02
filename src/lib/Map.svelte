@@ -162,6 +162,8 @@
   <div
     bind:this={mapElement}
     class="w-full h-full"
+    role="application"
+    aria-label="Interactive map"
     onmousemove={handleMouseMove}
   ></div>
 
