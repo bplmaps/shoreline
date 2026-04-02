@@ -17,6 +17,12 @@
   import { apply } from "ol-mapbox-style";
   import "ol/ol.css";
 
+  import {
+    prefersReducedMotion,
+    runShorelineYearTransition,
+    shorelineTransitionStyle,
+  } from "./shorelineYearTransition.js";
+
   import Fa from "svelte-fa";
   import {
     faArrowsLeftRightToLine,
@@ -29,7 +35,14 @@
   const styleJson = `https://api.maptiler.com/maps/topo-v2/style.json?key=${key}`;
 
   let mapElement;
-  let map;
+  /** @type {import('ol/Map').default | null} */
+  let map = $state(null);
+
+  /** Last fully settled year (single source for interrupt + restart). */
+  let commitYear = selectedYear.year;
+
+  /** @type {{ cancel: () => void } | null} */
+  let activeYearTransition = null;
 
   let measureOn = $state(false);
 
@@ -63,11 +76,8 @@
 
   let shorelineLayer = new VectorLayer({
     source: filteredSource,
-    style: {
-      "stroke-color": "rgba(82, 42, 17, 0.4)",
-      "stroke-width": 3,
-      "fill-color": "rgba(108, 134, 224, 0.4)",
-    },
+    style: shorelineTransitionStyle,
+    updateWhileAnimating: true,
   });
 
   let centerPointSource = new VectorSource();
@@ -89,18 +99,57 @@
     const y = selectedYear.year;
 
     if (!map) return;
-    const features = shorelineSource.getFeatures();
+
+    activeYearTransition?.cancel();
+    activeYearTransition = null;
+
+    if (prefersReducedMotion()) {
+      const next = shorelineSource
+        .getFeatures()
+        .filter((f) => f.get("year") === y);
+      filteredSource.clear();
+      filteredSource.addFeatures(next);
+      commitYear = y;
+      return;
+    }
+
+    const committed = shorelineSource
+      .getFeatures()
+      .filter((f) => f.get("year") === commitYear);
     filteredSource.clear();
-    filteredSource.addFeatures(
-      features.filter((feature) => feature.get("year") === y),
-    );
+    if (committed.length) {
+      filteredSource.addFeatures(committed);
+    }
+
+    if (y === commitYear) {
+      return;
+    }
+
+    activeYearTransition =
+      runShorelineYearTransition({
+        map,
+        shorelineSource,
+        filteredSource,
+        fromYear: commitYear,
+        toYear: y,
+        durationMs: 320,
+        onComplete: () => {
+          commitYear = y;
+          activeYearTransition = null;
+        },
+      }) ?? null;
+
+    return () => {
+      activeYearTransition?.cancel();
+      activeYearTransition = null;
+    };
   });
 
   let view = new View({
     center: [-7910487.16649, 5215011.801042],
     zoom: 15,
+    // Constrain the whole viewport to this extent (edges of the map, not just the center).
     extent: shorelineSource.getExtent(),
-    constrainOnlyCenter: true,
   });
 
   function updateMeasurePoint(point) {
@@ -141,19 +190,21 @@
   }
 
   onMount(() => {
-    map = new Map({
+    const olMap = new Map({
       target: mapElement,
       layers: [backgroundLayer, foregroundLayer],
       view: view,
     });
 
+    map = olMap;
+
     apply(backgroundLayer, styleJson);
 
     return () => {
-      if (map) {
-        map.setTarget(null);
-        map = null;
-      }
+      activeYearTransition?.cancel();
+      activeYearTransition = null;
+      olMap.setTarget(null);
+      map = null;
     };
   });
 </script>
